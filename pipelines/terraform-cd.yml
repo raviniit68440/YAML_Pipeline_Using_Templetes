@@ -1,0 +1,54 @@
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: landing-zone-vars
+  - name: serviceConnection
+    value: 'Azure-ARM-Service-Connection'
+
+stages:
+  - stage: Deploy_Dev
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: 'dev'
+          serviceConnection: $(serviceConnection)
+      - template: templates/terraform-apply.yml
+        parameters:
+          environment: 'dev'
+          serviceConnection: $(serviceConnection)
+          adoEnvironment: 'Dev'
+          dependsOn: Plan
+
+  - stage: Deploy_UAT
+    dependsOn: Deploy_Dev
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: 'uat'
+          serviceConnection: $(serviceConnection)
+      - template: templates/terraform-apply.yml
+        parameters:
+          environment: 'uat'
+          serviceConnection: $(serviceConnection)
+          adoEnvironment: 'UAT'
+          dependsOn: Plan
+
+  - stage: Deploy_Prod
+    dependsOn: Deploy_UAT
+    jobs:
+      - template: templates/terraform-plan.yml
+        parameters:
+          environment: 'prod'
+          serviceConnection: $(serviceConnection)
+      - template: templates/terraform-apply.yml
+        parameters:
+          environment: 'prod'
+          serviceConnection: $(serviceConnection)
+          adoEnvironment: 'Production'
+          dependsOn: Plan

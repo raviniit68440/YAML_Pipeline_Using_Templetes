@@ -1,0 +1,26 @@
+graph TD
+    Internet((Internet)) --> AGW[App Gateway WAF v2]
+    Admin((Admin User)) --> Bastion[Azure Bastion]
+    
+    subgraph Hub VNet
+        AGW
+        Bastion
+        LAW[Log Analytics]
+        KV[Key Vault]
+        RSV[Recovery Services Vault]
+    end
+    
+    subgraph Spoke VNets
+        VM_L[Linux VM]
+        VM_W[Windows VM]
+    end
+    
+    AGW -->|HTTP/S| VM_L
+    AGW -->|HTTP/S| VM_W
+    Bastion -->|SSH| VM_L
+    Bastion -->|RDP| VM_W
+    
+    VM_L -.->|Logs| LAW
+    VM_W -.->|Logs| LAW
+    VM_L -.->|Backup| RSV
+    VM_W -.->|Backup| RSV

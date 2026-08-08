@@ -1,0 +1,9 @@
+flowchart TD
+    Code[Push to Main] --> PlanDev(Plan Dev)
+    PlanDev --> AppDev(Apply Dev)
+    AppDev --> PlanUAT(Plan UAT)
+    PlanUAT --> GateUAT{UAT Approval}
+    GateUAT -->|Approved| AppUAT(Apply UAT)
+    AppUAT --> PlanProd(Plan Prod)
+    PlanProd --> GateProd{Prod Approval}
+    GateProd -->|Approved| AppProd(Apply Prod)

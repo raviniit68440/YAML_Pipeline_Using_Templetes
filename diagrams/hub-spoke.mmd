@@ -1,0 +1,9 @@
+graph LR
+    Hub[Hub VNet: 10.0.0.0/16]
+    SpokeDev[Dev Spoke VNet: 10.1.0.0/16]
+    SpokeUAT[UAT Spoke VNet: 10.10.0.0/16]
+    SpokeProd[Prod Spoke VNet: 10.20.0.0/16]
+    
+    Hub <-->|VNet Peering| SpokeDev
+    Hub <-->|VNet Peering| SpokeUAT
+    Hub <-->|VNet Peering| SpokeProd

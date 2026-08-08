@@ -1,0 +1,9 @@
+gitGraph
+    commit
+    branch feature/add-vms
+    checkout feature/add-vms
+    commit id: "Add TF code"
+    commit id: "Fix tests"
+    checkout main
+    merge feature/add-vms tag: "Triggers CI & CD"
+    commit id: "Deploy to Prod"
