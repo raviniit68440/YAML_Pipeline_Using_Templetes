@@ -111,6 +111,8 @@ jobs:
   infracost:
     name: Infracost
     runs-on: ubuntu-latest
+    env:
+      INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
