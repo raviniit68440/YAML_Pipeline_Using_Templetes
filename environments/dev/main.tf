@@ -207,13 +207,26 @@ resource "random_password" "vm_password" {
   override_special = "!#$%&*()-_=+[]{}<>:?"
 }
 
+data "azurerm_client_config" "current" {}
+
+module "rbac_kv_terraform_sp" {
+  source               = "../../modules/rbac"
+  scope                = module.kv.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
 # Store in Key Vault to satisfy "No credentials committed to Git"
 resource "azurerm_key_vault_secret" "vm_password" {
   name         = "admin-password"
   value        = random_password.vm_password.result
   key_vault_id = module.kv.id
-  # Wait for RBAC to propagate so we have permissions to create a secret if running locally
-  depends_on = [module.rbac_kv_secrets_user]
+
+  # Wait for Terraform to grant itself Key Vault Secrets Officer before creating the secret
+  depends_on = [
+    module.rbac_kv_secrets_user,
+    module.rbac_kv_terraform_sp
+  ]
 }
 
 module "linux_vm" {

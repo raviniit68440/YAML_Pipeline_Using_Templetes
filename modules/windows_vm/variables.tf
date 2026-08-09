@@ -12,7 +12,7 @@ variable "subnet_id" {
 }
 variable "size" {
   type    = string
-  default = "Standard_D2s_v3"
+  default = "Standard_B2ms"
 }
 variable "admin_username" {
   type = string
