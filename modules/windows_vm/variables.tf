@@ -12,7 +12,7 @@ variable "subnet_id" {
 }
 variable "size" {
   type    = string
-  default = "Standard_DS1_v2"
+  default = "Standard_D2s_v3"
 }
 variable "admin_username" {
   type = string
