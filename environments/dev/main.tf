@@ -109,7 +109,7 @@ module "private_dns" {
 # --- Security & Identity ---
 module "kv" {
   source              = "../../modules/key_vault"
-  name                = "kv-${local.name_prefix}-001"
+  name                = "kv-${local.name_prefix}-002"
   location            = var.location
   resource_group_name = module.rg_hub.name
   tags                = var.tags
@@ -216,6 +216,11 @@ module "rbac_kv_terraform_sp" {
   principal_id         = data.azurerm_client_config.current.object_id
 }
 
+resource "time_sleep" "wait_for_rbac" {
+  depends_on      = [module.rbac_kv_terraform_sp]
+  create_duration = "60s"
+}
+
 # Store in Key Vault to satisfy "No credentials committed to Git"
 resource "azurerm_key_vault_secret" "vm_password" {
   name         = "admin-password"
@@ -225,7 +230,7 @@ resource "azurerm_key_vault_secret" "vm_password" {
   # Wait for Terraform to grant itself Key Vault Secrets Officer before creating the secret
   depends_on = [
     module.rbac_kv_secrets_user,
-    module.rbac_kv_terraform_sp
+    time_sleep.wait_for_rbac
   ]
 }
 
