@@ -106,29 +106,7 @@ module "private_dns" {
   tags                = var.tags
 }
 
-# --- Security & Identity ---
-module "kv" {
-  source              = "../../modules/key_vault"
-  name                = "kv-${local.name_prefix}-002"
-  location            = var.location
-  resource_group_name = module.rg_hub.name
-  tags                = var.tags
-}
-
-module "mi_app" {
-  source              = "../../modules/managed_identity"
-  name                = "mi-${local.name_prefix}-app"
-  location            = var.location
-  resource_group_name = module.rg_spoke.name
-  tags                = var.tags
-}
-
-module "rbac_kv_secrets_user" {
-  source               = "../../modules/rbac"
-  scope                = module.kv.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = module.mi_app.principal_id
-}
+# Security & Identity Modules Removed
 
 # --- Monitoring ---
 module "law" {
@@ -149,12 +127,7 @@ module "monitor_ag" {
   tags                   = var.tags
 }
 
-module "diag_kv" {
-  source                     = "../../modules/diagnostic_settings"
-  name                       = "diag-kv"
-  target_resource_id         = module.kv.id
-  log_analytics_workspace_id = module.law.id
-}
+# KV diagnostic settings removed
 
 # --- Backup ---
 module "rsv" {
@@ -200,44 +173,7 @@ module "app_gateway" {
   tags                = var.tags
 }
 
-# Password generation (secure, stored in state/KV, not hardcoded)
-resource "random_password" "vm_password" {
-  length           = 16
-  special          = true
-  override_special = "!#$%&*()-_=+[]{}<>:?"
-  min_lower        = 2
-  min_upper        = 2
-  min_numeric      = 2
-  min_special      = 2
-}
-
-data "azurerm_client_config" "current" {}
-
-module "rbac_kv_terraform_sp" {
-  source               = "../../modules/rbac"
-  scope                = module.kv.id
-  role_definition_name = "Key Vault Secrets Officer"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
-resource "time_sleep" "wait_for_rbac" {
-  depends_on      = [module.rbac_kv_terraform_sp]
-  create_duration = "60s"
-}
-
-# Store in Key Vault to satisfy "No credentials committed to Git"
-resource "azurerm_key_vault_secret" "vm_password" {
-  name         = "admin-password"
-  value        = random_password.vm_password.result
-  key_vault_id = module.kv.id
-
-  # Wait for Terraform to grant itself Key Vault Secrets Officer before creating the secret
-  depends_on = [
-    module.rbac_kv_secrets_user,
-    time_sleep.wait_for_rbac
-  ]
-}
-
+# Hardcoded password per user request
 module "linux_vm" {
   source                             = "../../modules/linux_vm"
   name                               = "vm-lin-${local.name_prefix}"
@@ -245,7 +181,7 @@ module "linux_vm" {
   resource_group_name                = module.rg_spoke.name
   subnet_id                          = module.spoke_web_subnet.id
   admin_username                     = "azureadmin"
-  admin_password                     = random_password.vm_password.result
+  admin_password                     = "AzureAdminP@ssw0rd123!"
   app_gateway_backend_pool_id        = module.app_gateway.backend_address_pool_id
   recovery_vault_name                = module.rsv.name
   recovery_vault_resource_group_name = module.rg_hub.name
@@ -260,7 +196,7 @@ module "windows_vm" {
   resource_group_name                = module.rg_spoke.name
   subnet_id                          = module.spoke_web_subnet.id
   admin_username                     = "azureadmin"
-  admin_password                     = random_password.vm_password.result
+  admin_password                     = "AzureAdminP@ssw0rd123!"
   app_gateway_backend_pool_id        = module.app_gateway.backend_address_pool_id
   recovery_vault_name                = module.rsv.name
   recovery_vault_resource_group_name = module.rg_hub.name

@@ -1,4 +1,4 @@
-location    = "eastasia"
+location    = "westus2"
 environment = "dev"
 
 hub_vnet_address_space   = ["10.0.0.0/16"]
