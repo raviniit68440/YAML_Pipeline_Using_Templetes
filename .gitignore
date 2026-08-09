@@ -1,2 +1,6 @@
 Antigravity-FullyAutomated--LZ/
 .terraform/
+# Terraform generated files
+*.tfstate
+*.tfstate.*
+*.tfplan
