@@ -75,10 +75,27 @@ resource "azurerm_application_gateway" "this" {
     priority                   = 100
   }
 
-  waf_configuration {
-    enabled          = true
-    firewall_mode    = "Prevention"
-    rule_set_type    = "OWASP"
-    rule_set_version = "3.2"
+  firewall_policy_id = azurerm_web_application_firewall_policy.this.id
+}
+
+resource "azurerm_web_application_firewall_policy" "this" {
+  name                = "${var.name}-wafpolicy"
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = var.tags
+
+  policy_settings {
+    enabled                     = true
+    mode                        = "Prevention"
+    request_body_check          = true
+    file_upload_limit_in_mb     = 100
+    max_request_body_size_in_kb = 128
+  }
+
+  managed_rules {
+    managed_rule_set {
+      type    = "OWASP"
+      version = "3.2"
+    }
   }
 }
