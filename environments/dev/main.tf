@@ -5,14 +5,14 @@ locals {
 # --- Resource Groups ---
 module "rg_hub" {
   source   = "../../modules/resource_group"
-  name     = "rg-${local.name_prefix}-hub-eastus"
+  name     = "rg-${local.name_prefix}-hub-eastasia"
   location = var.location
   tags     = var.tags
 }
 
 module "rg_spoke" {
   source   = "../../modules/resource_group"
-  name     = "rg-${local.name_prefix}-spoke-eastus"
+  name     = "rg-${local.name_prefix}-spoke-eastasia"
   location = var.location
   tags     = var.tags
 }
