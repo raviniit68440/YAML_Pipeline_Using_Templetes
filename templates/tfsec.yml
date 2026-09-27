@@ -1,1 +1,103 @@
-f
+parameters:
+
+- name: enabled
+  type: boolean
+  default: true
+
+
+stages:
+
+- stage: Tfsec_Security_Scan
+  displayName: '🛡️ tfsec - Infrastructure Security Scan'
+
+  dependsOn: TFLint_Scan
+
+  condition: and(succeeded(), eq('${{ parameters.enabled }}', 'true'))
+
+  jobs:
+
+  - job: TfsecScan
+    displayName: 'tfsec Security Analysis'
+
+    steps:
+
+    - checkout: self
+
+
+    # ========================================================
+    # TFSEC INSTALL
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        TFSEC_VERSION="v1.28.14"
+
+        TFSEC_BINARY="$(Agent.TempDirectory)/tfsec"
+
+
+        echo "=============================================="
+        echo "          TFSEC INSTALLATION"
+        echo "=============================================="
+
+
+        rm -f "$TFSEC_BINARY"
+
+
+        curl -fL \
+          "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec-darwin-arm64" \
+          -o "$TFSEC_BINARY"
+
+
+        chmod +x "$TFSEC_BINARY"
+
+
+        echo ""
+        echo "tfsec version:"
+
+        "$TFSEC_BINARY" --version
+
+      displayName: '⬇️ tfsec - Install & Verify'
+
+
+    # ========================================================
+    # TFSEC SCAN
+    # ========================================================
+
+    - bash: |
+
+        set +e
+
+        TFSEC_BINARY="$(Agent.TempDirectory)/tfsec"
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+
+        echo ""
+        echo "======================================================"
+        echo "              🛡️ TFSEC SECURITY SCAN"
+        echo "======================================================"
+
+
+        "$TFSEC_BINARY" . --soft-fail=true
+
+        TFSEC_EXIT_CODE=$?
+
+
+        echo ""
+        echo "======================================================"
+        echo "              TFSEC SCAN COMPLETED"
+        echo "======================================================"
+
+
+        echo "tfsec exit code: $TFSEC_EXIT_CODE"
+
+        echo ""
+
+        echo "Review the security findings above."
+
+
+        exit 0
+
+      displayName: '🛡️ tfsec - Security Scan'
