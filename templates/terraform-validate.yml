@@ -1,1 +1,70 @@
-h
+stages:
+
+- stage: Terraform_Validate_and_Fmt
+  displayName: '🔍 Terraform - Validate & Format'
+
+  jobs:
+
+  - job: TerraformValidation
+    displayName: 'Terraform Validation'
+
+    steps:
+
+    - checkout: self
+
+
+    # ========================================================
+    # TERRAFORM INIT
+    # ========================================================
+
+    - task: TerraformTask@5
+      displayName: '⚙️ Terraform - Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+
+        workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+        backendServiceArm: 'gautamSVC'
+        backendAzureRmResourceGroupName: 'rggautam001'
+        backendAzureRmStorageAccountName: 'terraformstate20260915'
+        backendAzureRmContainerName: 'terraformcontainer'
+        backendAzureRmKey: 'dev.tfstate'
+
+
+    # ========================================================
+    # TERRAFORM VALIDATE
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo "=============================================="
+        echo "        TERRAFORM VALIDATION"
+        echo "=============================================="
+
+        terraform validate
+
+      displayName: '✅ Terraform - Validate'
+
+
+    # ========================================================
+    # TERRAFORM FORMAT
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo "=============================================="
+        echo "        TERRAFORM FORMAT CHECK"
+        echo "=============================================="
+
+        terraform fmt -check -recursive
+
+      displayName: '✨ Terraform - Format Check'
