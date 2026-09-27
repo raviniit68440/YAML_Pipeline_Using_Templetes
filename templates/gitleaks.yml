@@ -1,1 +1,125 @@
-g
+parameters:
+
+- name: enabled
+  type: boolean
+  default: true
+
+
+stages:
+
+- stage: Gitleaks_Secret_Scan
+  displayName: '🔐 Gitleaks - Secret Detection'
+
+  dependsOn:
+  - Tfsec_Security_Scan
+  - Manual_Security_Validation
+
+  condition: and(succeeded(), eq('${{ parameters.enabled }}', 'true'))
+
+
+  jobs:
+
+  - job: GitleaksScan
+    displayName: 'Gitleaks Secret Detection'
+
+    steps:
+
+    - checkout: self
+
+
+    # ========================================================
+    # GITLEAKS INSTALL
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        GITLEAKS_VERSION="8.30.1"
+
+        GITLEAKS_DIR="$(Agent.TempDirectory)/gitleaks"
+        GITLEAKS_ARCHIVE="$(Agent.TempDirectory)/gitleaks.tar.gz"
+        GITLEAKS_BINARY="$GITLEAKS_DIR/gitleaks"
+
+
+        echo "=============================================="
+        echo "          GITLEAKS INSTALLATION"
+        echo "=============================================="
+
+
+        rm -rf "$GITLEAKS_DIR"
+
+        rm -f "$GITLEAKS_ARCHIVE"
+
+
+        mkdir -p "$GITLEAKS_DIR"
+
+
+        echo "Downloading Gitleaks ${GITLEAKS_VERSION}..."
+
+
+        curl -fL \
+          "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_darwin_arm64.tar.gz" \
+          -o "$GITLEAKS_ARCHIVE"
+
+
+        tar -xzf "$GITLEAKS_ARCHIVE" -C "$GITLEAKS_DIR"
+
+
+        chmod +x "$GITLEAKS_BINARY"
+
+
+        echo ""
+        echo "Gitleaks version:"
+
+        "$GITLEAKS_BINARY" version
+
+      displayName: '⬇️ Gitleaks - Install & Verify'
+
+
+    # ========================================================
+    # GITLEAKS SCAN
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        GITLEAKS_BINARY="$(Agent.TempDirectory)/gitleaks/gitleaks"
+
+        REPO_ROOT="$(System.DefaultWorkingDirectory)"
+
+
+        cd "$REPO_ROOT"
+
+
+        echo "=============================================="
+        echo "          GITLEAKS SECRET SCAN"
+        echo "=============================================="
+
+
+        echo ""
+
+        echo "Repository:"
+
+        pwd
+
+
+        echo ""
+
+        echo "Running Gitleaks..."
+
+
+        "$GITLEAKS_BINARY" detect \
+          --source="$REPO_ROOT" \
+          --no-banner \
+          --redact
+
+
+        echo ""
+
+        echo "=============================================="
+        echo "       GITLEAKS SCAN COMPLETED"
+        echo "=============================================="
+
+      displayName: '🔐 Gitleaks - Secret Scan'
