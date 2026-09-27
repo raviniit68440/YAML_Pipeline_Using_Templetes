@@ -1,1 +1,93 @@
-a
+trigger: none
+
+pool: huluhulu
+
+parameters:
+
+- name: runTFLint
+  displayName: 'Run TFLint Scan'
+  type: boolean
+  default: true
+
+- name: runTfsec
+  displayName: 'Run tfsec Security Scan'
+  type: boolean
+  default: true
+
+- name: runGitleaks
+  displayName: 'Run Gitleaks Secret Scan'
+  type: boolean
+  default: true
+
+- name: runTerraformPlan
+  displayName: 'Run Terraform Plan'
+  type: boolean
+  default: true
+
+- name: runTerraformApply
+  displayName: 'Run Terraform Apply'
+  type: boolean
+  default: false
+
+
+stages:
+
+# ============================================================
+# 1. TERRAFORM VALIDATION
+# ============================================================
+
+- template: templates/terraform-validate.yml
+
+
+# ============================================================
+# 2. TFLINT
+# ============================================================
+
+- template: templates/tflint.yml
+  parameters:
+    enabled: ${{ parameters.runTFLint }}
+
+
+# ============================================================
+# 3. TFSEC
+# ============================================================
+
+- template: templates/tfsec.yml
+  parameters:
+    enabled: ${{ parameters.runTfsec }}
+
+
+# ============================================================
+# 4. MANUAL SECURITY REVIEW
+# ============================================================
+
+- template: templates/manual-security.yml
+  parameters:
+    enabled: ${{ parameters.runTfsec }}
+
+
+# ============================================================
+# 5. GITLEAKS
+# ============================================================
+
+- template: templates/gitleaks.yml
+  parameters:
+    enabled: ${{ parameters.runGitleaks }}
+
+
+# ============================================================
+# 6. TERRAFORM PLAN
+# ============================================================
+
+- template: templates/terraform-plan.yml
+  parameters:
+    enabled: ${{ parameters.runTerraformPlan }}
+
+
+# ============================================================
+# 7. TERRAFORM APPLY
+# ============================================================
+
+- template: templates/terraform-apply.yml
+  parameters:
+    enabled: ${{ parameters.runTerraformApply }}
