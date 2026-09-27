@@ -1,1 +1,88 @@
-k
+parameters:
+
+- name: enabled
+  type: boolean
+  default: true
+
+
+stages:
+
+- stage: Terraform_Plan
+  displayName: '📋 Terraform - Plan Infrastructure'
+
+  dependsOn: Gitleaks_Secret_Scan
+
+  condition: and(succeeded(), eq('${{ parameters.enabled }}', 'true'))
+
+
+  jobs:
+
+  - job: TerraformPlan
+    displayName: 'Terraform Plan'
+
+    steps:
+
+    - checkout: self
+
+
+    # ========================================================
+    # TERRAFORM INIT
+    # ========================================================
+
+    - task: TerraformTask@5
+
+      displayName: '⚙️ Terraform - Init'
+
+      inputs:
+
+        provider: 'azurerm'
+
+        command: 'init'
+
+        workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+        backendServiceArm: 'gautamSVC'
+
+        backendAzureRmResourceGroupName: 'rggautam001'
+
+        backendAzureRmStorageAccountName: 'terraformstate20260915'
+
+        backendAzureRmContainerName: 'terraformcontainer'
+
+        backendAzureRmKey: 'dev.tfstate'
+
+
+    # ========================================================
+    # TERRAFORM PLAN
+    # ========================================================
+
+    - task: TerraformTask@5
+
+      displayName: '📋 Terraform - Generate Plan'
+
+      inputs:
+
+        provider: 'azurerm'
+
+        command: 'plan'
+
+        workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+        environmentServiceNameAzureRM: 'gautamSVC'
+
+        commandOptions: '-out=tfplan'
+
+
+    # ========================================================
+    # PUBLISH PLAN
+    # ========================================================
+
+    - task: PublishPipelineArtifact@1
+
+      displayName: '📦 Publish Terraform Plan Artifact'
+
+      inputs:
+
+        targetPath: '$(System.DefaultWorkingDirectory)/environments/dev/tfplan'
+
+        artifact: 'terraform-plan'
