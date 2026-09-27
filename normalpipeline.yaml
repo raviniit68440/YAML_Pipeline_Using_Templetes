@@ -1,0 +1,527 @@
+trigger: none
+
+pool: huluhulu
+
+parameters:
+
+- name: runTFLint
+  displayName: 'Run TFLint Scan'
+  type: boolean
+  default: true
+
+- name: runTfsec
+  displayName: 'Run tfsec Security Scan'
+  type: boolean
+  default: true
+
+- name: runGitleaks
+  displayName: 'Run Gitleaks Secret Scan'
+  type: boolean
+  default: true
+
+- name: runTerraformPlan
+  displayName: 'Run Terraform Plan'
+  type: boolean
+  default: true
+
+- name: runTerraformApply
+  displayName: 'Run Terraform Apply'
+  type: boolean
+  default: false
+
+
+stages:
+
+# ============================================================
+# 1. TERRAFORM VALIDATE + FORMAT
+# ============================================================
+
+- stage: Terraform_Validate_and_Fmt
+  displayName: '🔍 Terraform - Validate & Format'
+
+  jobs:
+  - job: TerraformValidation
+    displayName: 'Terraform Validation'
+
+    steps:
+
+    - checkout: self
+
+    - task: TerraformTask@5
+      displayName: '⚙️ Terraform - Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+        backendServiceArm: 'gautamSVC'
+        backendAzureRmResourceGroupName: 'rggautam001'
+        backendAzureRmStorageAccountName: 'terraformstate20260915'
+        backendAzureRmContainerName: 'terraformcontainer'
+        backendAzureRmKey: 'dev.tfstate'
+
+    - bash: |
+        set -e
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo "=============================================="
+        echo "        TERRAFORM VALIDATION"
+        echo "=============================================="
+
+        terraform validate
+
+      displayName: '✅ Terraform - Validate'
+
+
+    - bash: |
+        set -e
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo "=============================================="
+        echo "        TERRAFORM FORMAT CHECK"
+        echo "=============================================="
+
+        terraform fmt -check -recursive
+
+      displayName: '✨ Terraform - Format Check'
+
+
+# ============================================================
+# 2. TFLINT
+# ============================================================
+
+- stage: TFLint_Scan
+  displayName: '🔎 TFLint - Terraform Lint Scan'
+
+  dependsOn: Terraform_Validate_and_Fmt
+
+  condition: and(succeeded(), eq('${{ parameters.runTFLint }}', 'true'))
+
+  jobs:
+  - job: TFLintScan
+    displayName: 'TFLint Static Analysis'
+
+    steps:
+
+    - checkout: self
+
+    - bash: |
+        set -e
+
+        TFLINT_VERSION="v0.59.1"
+
+        TFLINT_DIR="$(Agent.TempDirectory)/tflint"
+        TFLINT_ZIP="$(Agent.TempDirectory)/tflint.zip"
+        TFLINT_BINARY="$TFLINT_DIR/tflint"
+
+        echo "=============================================="
+        echo "        TFLINT INSTALLATION"
+        echo "=============================================="
+
+        rm -rf "$TFLINT_DIR"
+        rm -f "$TFLINT_ZIP"
+
+        mkdir -p "$TFLINT_DIR"
+
+        curl -fL \
+          "https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}/tflint_darwin_arm64.zip" \
+          -o "$TFLINT_ZIP"
+
+        unzip -o "$TFLINT_ZIP" -d "$TFLINT_DIR"
+
+        chmod +x "$TFLINT_BINARY"
+
+        echo ""
+        echo "TFLint version:"
+        "$TFLINT_BINARY" --version
+
+      displayName: '⬇️ TFLint - Install & Verify'
+
+
+    - bash: |
+        set -e
+
+        TFLINT_BINARY="$(Agent.TempDirectory)/tflint/tflint"
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo "=============================================="
+        echo "        TFLINT INITIALIZATION"
+        echo "=============================================="
+
+        "$TFLINT_BINARY" --init
+
+      displayName: '⚙️ TFLint - Initialize Rules'
+
+
+    - bash: |
+        set -e
+
+        TFLINT_BINARY="$(Agent.TempDirectory)/tflint/tflint"
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo "=============================================="
+        echo "        TFLINT STATIC SCAN"
+        echo "=============================================="
+
+        "$TFLINT_BINARY" --recursive
+
+      displayName: '🔎 TFLint - Static Code Scan'
+
+
+# ============================================================
+# 3. TFSEC
+# ============================================================
+
+- stage: Tfsec_Security_Scan
+  displayName: '🛡️ tfsec - Infrastructure Security Scan'
+
+  dependsOn: TFLint_Scan
+
+  condition: and(succeeded(), eq('${{ parameters.runTfsec }}', 'true'))
+
+  jobs:
+  - job: TfsecScan
+    displayName: 'tfsec Security Analysis'
+
+    steps:
+
+    - checkout: self
+
+    - bash: |
+        set -e
+
+        TFSEC_VERSION="v1.28.14"
+        TFSEC_BINARY="$(Agent.TempDirectory)/tfsec"
+
+        echo "=============================================="
+        echo "        TFSEC INSTALLATION"
+        echo "=============================================="
+
+        rm -f "$TFSEC_BINARY"
+
+        curl -fL \
+          "https://github.com/aquasecurity/tfsec/releases/download/${TFSEC_VERSION}/tfsec-darwin-arm64" \
+          -o "$TFSEC_BINARY"
+
+        chmod +x "$TFSEC_BINARY"
+
+        echo ""
+        echo "tfsec version:"
+        "$TFSEC_BINARY" --version
+
+      displayName: '⬇️ tfsec - Install & Verify'
+
+
+    - bash: |
+        set +e
+
+        TFSEC_BINARY="$(Agent.TempDirectory)/tfsec"
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+        echo ""
+        echo "======================================================"
+        echo "              🛡️ TFSEC SECURITY SCAN"
+        echo "======================================================"
+        echo ""
+
+        "$TFSEC_BINARY" . --soft-fail=true
+
+        TFSEC_EXIT_CODE=$?
+
+        echo ""
+        echo "======================================================"
+        echo "              TFSEC SCAN COMPLETED"
+        echo "======================================================"
+
+        echo "tfsec exit code: $TFSEC_EXIT_CODE"
+
+        echo ""
+        echo "Review the security findings above."
+
+        exit 0
+
+      displayName: '🛡️ tfsec - Security Scan'
+
+
+# ============================================================
+# 4. MANUAL SECURITY VALIDATION
+# ============================================================
+
+- stage: Manual_Security_Validation
+  displayName: '👤 Manual Validation - Review tfsec Results'
+
+  dependsOn: Tfsec_Security_Scan
+
+  condition: and(succeeded(), eq('${{ parameters.runTfsec }}', 'true'))
+
+  jobs:
+
+  - job: ManualValidation
+    displayName: 'Manual Security Approval'
+
+    pool: server
+
+    timeoutInMinutes: 1440
+
+    steps:
+
+    - task: ManualValidation@1
+      timeoutInMinutes: 1440
+
+      inputs:
+
+        notifyUsers: ''
+
+        approvers: ''
+
+        instructions: |
+          ======================================================
+                    🛡️ TFSEC SECURITY REVIEW
+          ======================================================
+
+          Review the tfsec results from the previous stage.
+
+          Check:
+
+          - HIGH findings
+          - MEDIUM findings
+          - LOW findings
+          - Authentication findings
+          - Network findings
+          - Storage findings
+          - Public exposure findings
+
+          APPROVE:
+          Continue to Gitleaks and Terraform Plan.
+
+          REJECT:
+          Stop the pipeline and investigate the findings.
+
+          tfsec is configured with soft-fail=true.
+          Security findings are manually reviewed here.
+
+          ======================================================
+
+        onTimeout: 'reject'
+
+
+# ============================================================
+# 5. GITLEAKS
+# ============================================================
+
+- stage: Gitleaks_Secret_Scan
+  displayName: '🔐 Gitleaks - Secret Detection'
+
+  dependsOn:
+  - Tfsec_Security_Scan
+  - Manual_Security_Validation
+
+  condition: and(succeeded(), eq('${{ parameters.runGitleaks }}', 'true'))
+
+  jobs:
+  - job: GitleaksScan
+    displayName: 'Gitleaks Secret Detection'
+
+    steps:
+
+    - checkout: self
+
+    - bash: |
+        set -e
+
+        GITLEAKS_VERSION="8.30.1"
+
+        GITLEAKS_DIR="$(Agent.TempDirectory)/gitleaks"
+        GITLEAKS_ARCHIVE="$(Agent.TempDirectory)/gitleaks.tar.gz"
+        GITLEAKS_BINARY="$GITLEAKS_DIR/gitleaks"
+
+        echo "=============================================="
+        echo "          GITLEAKS INSTALLATION"
+        echo "=============================================="
+
+        rm -rf "$GITLEAKS_DIR"
+        rm -f "$GITLEAKS_ARCHIVE"
+
+        mkdir -p "$GITLEAKS_DIR"
+
+        echo "Downloading Gitleaks ${GITLEAKS_VERSION}..."
+
+        curl -fL \
+          "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_darwin_arm64.tar.gz" \
+          -o "$GITLEAKS_ARCHIVE"
+
+        tar -xzf "$GITLEAKS_ARCHIVE" \
+          -C "$GITLEAKS_DIR"
+
+        chmod +x "$GITLEAKS_BINARY"
+
+        echo ""
+        echo "Gitleaks version:"
+        "$GITLEAKS_BINARY" version
+
+      displayName: '⬇️ Gitleaks - Install & Verify'
+
+
+    - bash: |
+        set -e
+
+        GITLEAKS_BINARY="$(Agent.TempDirectory)/gitleaks/gitleaks"
+
+        REPO_ROOT="$(System.DefaultWorkingDirectory)"
+
+        cd "$REPO_ROOT"
+
+        echo "=============================================="
+        echo "          GITLEAKS SECRET SCAN"
+        echo "=============================================="
+
+        echo ""
+        echo "Repository:"
+        pwd
+
+        echo ""
+        echo "Running Gitleaks..."
+
+        "$GITLEAKS_BINARY" detect \
+          --source="$REPO_ROOT" \
+          --no-banner \
+          --redact
+
+        echo ""
+        echo "=============================================="
+        echo "       GITLEAKS SCAN COMPLETED"
+        echo "=============================================="
+
+      displayName: '🔐 Gitleaks - Secret & Credential Scan'
+
+
+# ============================================================
+# 6. TERRAFORM PLAN
+# ============================================================
+
+- stage: Terraform_Plan
+  displayName: '📋 Terraform - Plan Infrastructure'
+
+  dependsOn: Gitleaks_Secret_Scan
+
+  condition: and(succeeded(), eq('${{ parameters.runTerraformPlan }}', 'true'))
+
+  jobs:
+  - job: TerraformPlan
+    displayName: 'Terraform Plan'
+
+    steps:
+
+    - checkout: self
+
+    - task: TerraformTask@5
+      displayName: '⚙️ Terraform - Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+        backendServiceArm: 'gautamSVC'
+        backendAzureRmResourceGroupName: 'rggautam001'
+        backendAzureRmStorageAccountName: 'terraformstate20260915'
+        backendAzureRmContainerName: 'terraformcontainer'
+        backendAzureRmKey: 'dev.tfstate'
+
+
+    - task: TerraformTask@5
+      displayName: '📋 Terraform - Generate Plan'
+      inputs:
+        provider: 'azurerm'
+        command: 'plan'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+        environmentServiceNameAzureRM: 'gautamSVC'
+        commandOptions: '-out=tfplan'
+
+
+    - task: PublishPipelineArtifact@1
+      displayName: '📦 Publish Terraform Plan Artifact'
+      inputs:
+        targetPath: '$(System.DefaultWorkingDirectory)/environments/dev/tfplan'
+        artifact: 'terraform-plan'
+
+
+# ============================================================
+# 7. TERRAFORM APPLY
+# ============================================================
+
+- stage: Terraform_Apply
+  displayName: '🚀 Terraform - Apply Infrastructure'
+
+  dependsOn: Terraform_Plan
+
+  condition: and(succeeded(), eq('${{ parameters.runTerraformApply }}', 'true'))
+
+  jobs:
+
+  - deployment: TerraformApply
+    displayName: 'Terraform Infrastructure Deployment'
+
+    environment: 'terraform-dev'
+
+    strategy:
+
+      runOnce:
+
+        deploy:
+
+          steps:
+
+          - checkout: self
+
+          - task: TerraformTask@5
+            displayName: '⚙️ Terraform - Init'
+            inputs:
+              provider: 'azurerm'
+              command: 'init'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              backendServiceArm: 'gautamSVC'
+              backendAzureRmResourceGroupName: 'rggautam001'
+              backendAzureRmStorageAccountName: 'terraformstate20260915'
+              backendAzureRmContainerName: 'terraformcontainer'
+              backendAzureRmKey: 'dev.tfstate'
+
+
+          - task: DownloadPipelineArtifact@2
+            displayName: '📥 Download Terraform Plan'
+            inputs:
+              artifact: 'terraform-plan'
+              path: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+
+          - bash: |
+              set -e
+
+              cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+              echo "=============================================="
+              echo "        TERRAFORM PLAN VERIFICATION"
+              echo "=============================================="
+
+              if [ ! -f "tfplan" ]; then
+                echo "ERROR: Terraform plan file not found."
+                exit 1
+              fi
+
+              echo ""
+              echo "Terraform plan found:"
+              ls -lh tfplan
+
+            displayName: '🔎 Verify Terraform Plan'
+
+
+          - task: TerraformTask@5
+            displayName: '🚀 Terraform - Apply Approved Plan'
+            inputs:
+              provider: 'azurerm'
+              command: 'apply'
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+              environmentServiceNameAzureRM: 'gautamSVC'
+              commandOptions: 'tfplan'
