@@ -1,1 +1,133 @@
-h
+parameters:
+
+- name: enabled
+  type: boolean
+  default: false
+
+
+stages:
+
+- stage: Terraform_Apply
+  displayName: '🚀 Terraform - Apply Infrastructure'
+
+  dependsOn: Terraform_Plan
+
+  condition: and(succeeded(), eq('${{ parameters.enabled }}', 'true'))
+
+
+  jobs:
+
+  - deployment: TerraformApply
+
+    displayName: 'Terraform Infrastructure Deployment'
+
+
+    environment: 'terraform-dev'
+
+
+    strategy:
+
+      runOnce:
+
+        deploy:
+
+          steps:
+
+          - checkout: self
+
+
+          # ==================================================
+          # TERRAFORM INIT
+          # ==================================================
+
+          - task: TerraformTask@5
+
+            displayName: '⚙️ Terraform - Init'
+
+            inputs:
+
+              provider: 'azurerm'
+
+              command: 'init'
+
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+              backendServiceArm: 'gautamSVC'
+
+              backendAzureRmResourceGroupName: 'rggautam001'
+
+              backendAzureRmStorageAccountName: 'terraformstate20260915'
+
+              backendAzureRmContainerName: 'terraformcontainer'
+
+              backendAzureRmKey: 'dev.tfstate'
+
+
+          # ==================================================
+          # DOWNLOAD PLAN
+          # ==================================================
+
+          - task: DownloadPipelineArtifact@2
+
+            displayName: '📥 Download Terraform Plan'
+
+            inputs:
+
+              artifact: 'terraform-plan'
+
+              path: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+
+          # ==================================================
+          # VERIFY PLAN
+          # ==================================================
+
+          - bash: |
+
+              set -e
+
+              cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+
+              echo "=============================================="
+              echo "        TERRAFORM PLAN VERIFICATION"
+              echo "=============================================="
+
+
+              if [ ! -f "tfplan" ]; then
+
+                echo "ERROR: Terraform plan file not found."
+
+                exit 1
+
+              fi
+
+
+              echo ""
+
+              echo "Terraform plan found:"
+
+              ls -lh tfplan
+
+            displayName: '🔎 Verify Terraform Plan'
+
+
+          # ==================================================
+          # APPLY APPROVED PLAN
+          # ==================================================
+
+          - task: TerraformTask@5
+
+            displayName: '🚀 Terraform - Apply Approved Plan'
+
+            inputs:
+
+              provider: 'azurerm'
+
+              command: 'apply'
+
+              workingDirectory: '$(System.DefaultWorkingDirectory)/environments/dev'
+
+              environmentServiceNameAzureRM: 'gautamSVC'
+
+              commandOptions: 'tfplan'
