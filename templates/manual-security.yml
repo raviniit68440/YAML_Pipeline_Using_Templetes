@@ -1,1 +1,76 @@
-f
+parameters:
+
+- name: enabled
+  type: boolean
+  default: true
+
+
+stages:
+
+- stage: Manual_Security_Validation
+  displayName: '👤 Manual Validation - Review tfsec Results'
+
+  dependsOn: Tfsec_Security_Scan
+
+  condition: and(succeeded(), eq('${{ parameters.enabled }}', 'true'))
+
+  jobs:
+
+  - job: ManualValidation
+    displayName: 'Manual Security Approval'
+
+    pool: server
+
+    timeoutInMinutes: 1440
+
+
+    steps:
+
+    - task: ManualValidation@1
+
+      timeoutInMinutes: 1440
+
+      inputs:
+
+        notifyUsers: ''
+
+        approvers: ''
+
+        instructions: |
+
+          ======================================================
+                    🛡️ TFSEC SECURITY REVIEW
+          ======================================================
+
+          Review the tfsec results from the previous stage.
+
+
+          Check:
+
+          - HIGH findings
+          - MEDIUM findings
+          - LOW findings
+          - Authentication findings
+          - Network findings
+          - Storage findings
+          - Public exposure findings
+
+
+          APPROVE:
+
+          Continue to Gitleaks and Terraform Plan.
+
+
+          REJECT:
+
+          Stop the pipeline and investigate the findings.
+
+
+          tfsec is configured with soft-fail=true.
+
+          Security findings are manually reviewed here.
+
+
+          ======================================================
+
+        onTimeout: 'reject'
