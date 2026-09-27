@@ -1,1 +1,117 @@
-g
+parameters:
+
+- name: enabled
+  type: boolean
+  default: true
+
+
+stages:
+
+- stage: TFLint_Scan
+  displayName: '🔎 TFLint - Terraform Lint Scan'
+
+  dependsOn: Terraform_Validate_and_Fmt
+
+  condition: and(succeeded(), eq('${{ parameters.enabled }}', 'true'))
+
+  jobs:
+
+  - job: TFLintScan
+    displayName: 'TFLint Static Analysis'
+
+    steps:
+
+    - checkout: self
+
+
+    # ========================================================
+    # TFLINT INSTALL
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        TFLINT_VERSION="v0.59.1"
+
+        TFLINT_DIR="$(Agent.TempDirectory)/tflint"
+        TFLINT_ZIP="$(Agent.TempDirectory)/tflint.zip"
+        TFLINT_BINARY="$TFLINT_DIR/tflint"
+
+
+        echo "=============================================="
+        echo "          TFLINT INSTALLATION"
+        echo "=============================================="
+
+
+        rm -rf "$TFLINT_DIR"
+        rm -f "$TFLINT_ZIP"
+
+        mkdir -p "$TFLINT_DIR"
+
+
+        echo "Downloading TFLint ${TFLINT_VERSION}..."
+
+
+        curl -fL \
+          "https://github.com/terraform-linters/tflint/releases/download/${TFLINT_VERSION}/tflint_darwin_arm64.zip" \
+          -o "$TFLINT_ZIP"
+
+
+        unzip -o "$TFLINT_ZIP" -d "$TFLINT_DIR"
+
+        chmod +x "$TFLINT_BINARY"
+
+
+        echo ""
+        echo "TFLint version:"
+
+        "$TFLINT_BINARY" --version
+
+      displayName: '⬇️ TFLint - Install & Verify'
+
+
+    # ========================================================
+    # TFLINT INIT
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        TFLINT_BINARY="$(Agent.TempDirectory)/tflint/tflint"
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+
+        echo "=============================================="
+        echo "        TFLINT INITIALIZATION"
+        echo "=============================================="
+
+
+        "$TFLINT_BINARY" --init
+
+      displayName: '⚙️ TFLint - Initialize Rules'
+
+
+    # ========================================================
+    # TFLINT SCAN
+    # ========================================================
+
+    - bash: |
+
+        set -e
+
+        TFLINT_BINARY="$(Agent.TempDirectory)/tflint/tflint"
+
+        cd "$(System.DefaultWorkingDirectory)/environments/dev"
+
+
+        echo "=============================================="
+        echo "          TFLINT STATIC SCAN"
+        echo "=============================================="
+
+
+        "$TFLINT_BINARY" --recursive
+
+      displayName: '🔎 TFLint - Static Code Scan'
