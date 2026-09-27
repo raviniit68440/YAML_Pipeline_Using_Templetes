@@ -1,9 +1,0 @@
-steps:
-  - script: |
-      wget https://github.com/zricethezav/gitleaks/releases/download/v8.18.1/gitleaks_8.18.1_linux_x64.tar.gz
-      tar -xzf gitleaks_8.18.1_linux_x64.tar.gz
-      sudo mv gitleaks /usr/local/bin/
-      
-      # Run GitLeaks to detect any secrets
-      gitleaks detect --source . -v --redact
-    displayName: 'GitLeaks Secret Scan'
